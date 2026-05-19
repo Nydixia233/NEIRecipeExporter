@@ -1,0 +1,17 @@
+[
+  {
+    "modid": "${modId}",
+    "name": "${modName}",
+    "description": "Dump all visible NEI recipes to JSON compatible with GTNH all_recipe schema.",
+    "version": "${version}",
+    "mcversion": "1.7.10",
+    "url": "",
+    "updateUrl": "",
+    "authorList": ["GTNH Agent Team"],
+    "credits": "",
+    "logoFile": "",
+    "screenshots": [],
+    "dependencies": ["required-after:Forge"],
+    "useDependencyInformation": true
+  }
+]
