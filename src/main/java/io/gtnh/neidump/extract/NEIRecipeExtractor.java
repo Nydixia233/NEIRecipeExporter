@@ -451,11 +451,31 @@ public class NEIRecipeExtractor {
         ExportRecipe recipe = new ExportRecipe(type, displayName != null ? displayName : recipeId);
         recipe.putExtra("recipe_class", className);
 
-        // --- inputs ---
+        // --- inputs: try MCP names first, then SRG, then scan all fields ---
         Object rawInputs = null;
-        for (String fieldName : new String[]{"recipeItems", "input", "inputs", "items"}) {
+        for (String fieldName : new String[]{"recipeItems", "input", "inputs", "items",
+                "field_77575_c", "field_77579_b"}) {
             rawInputs = ReflectionUtils.readField(irecipe, fieldName);
             if (rawInputs != null) break;
+        }
+        // Fallback: scan all declared fields for an array or List of ItemStack
+        if (rawInputs == null) {
+            for (java.lang.reflect.Field f : irecipe.getClass().getDeclaredFields()) {
+                Class<?> ft = f.getType();
+                if (ft.isArray() && ft.getComponentType() != null
+                        && ItemStack.class.isAssignableFrom(ft.getComponentType())) {
+                    rawInputs = ReflectionUtils.readField(irecipe, f.getName());
+                    break;
+                }
+                if (List.class.isAssignableFrom(ft)) {
+                    rawInputs = ReflectionUtils.readField(irecipe, f.getName());
+                    break;
+                }
+                if (ft.isArray() && ft.getComponentType() == Object.class) {
+                    rawInputs = ReflectionUtils.readField(irecipe, f.getName());
+                    break;
+                }
+            }
         }
 
         int slot = 1;
@@ -845,14 +865,54 @@ public class NEIRecipeExtractor {
     //  Utilities
     // ========================================================================
 
-    /** Deduplicate by input/output fingerprint, keeping first occurrence. */
+    /** Deduplicate by input/output fingerprint. Keep first occurrence but merge
+     *  catalysts / machine / handler_class from later duplicates. */
     private static void addDeduped(List<ExportRecipe> dest, Set<String> seen,
                                     List<ExportRecipe> candidates) {
+        // Map fingerprint to recipe in dest list for fast merge
+        java.util.LinkedHashMap<String, ExportRecipe> seenMap =
+                new java.util.LinkedHashMap<String, ExportRecipe>();
+        // Rebuild seenMap from dest
+        for (int i = 0; i < dest.size(); i++) {
+            ExportRecipe r = dest.get(i);
+            String fp = recipeFingerprint(r);
+            seenMap.put(fp, r);
+        }
         for (ExportRecipe r : candidates) {
             String fp = recipeFingerprint(r);
-            if (seen.add(fp)) {
+            ExportRecipe existing = seenMap.get(fp);
+            if (existing != null) {
+                // Merge extra fields from duplicate into existing
+                mergeFields(existing, r);
+            } else {
+                seenMap.put(fp, r);
                 dest.add(r);
+                seen.add(fp);
             }
+        }
+    }
+
+    /** Copy catalysts / machine / handler_class from source to target if target lacks them. */
+    private static void mergeFields(ExportRecipe target, ExportRecipe source) {
+        if ((!target.getExtra().containsKey("catalysts") || target.getExtra().get("catalysts") == null)
+                && source.getExtra().get("catalysts") != null) {
+            target.putExtra("catalysts", source.getExtra().get("catalysts"));
+        }
+        if ((!target.getExtra().containsKey("machine") || target.getExtra().get("machine") == null)
+                && source.getExtra().get("machine") != null) {
+            target.putExtra("machine", source.getExtra().get("machine"));
+            // Also improve the name if it was just a recipe ID
+            String srcMachine = source.getExtra().get("machine").toString();
+            if (srcMachine != null && !srcMachine.isEmpty()) {
+                String curName = target.getName();
+                if (curName != null && curName.contains("#") && !curName.contains("→")) {
+                    target.setName(srcMachine + " → " + curName.substring(curName.indexOf("#") + 1));
+                }
+            }
+        }
+        if ((!target.getExtra().containsKey("handler_class") || target.getExtra().get("handler_class") == null)
+                && source.getExtra().get("handler_class") != null) {
+            target.putExtra("handler_class", source.getExtra().get("handler_class"));
         }
     }
 
