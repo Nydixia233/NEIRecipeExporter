@@ -67,7 +67,8 @@ public class CommandDumpNEIRecipes extends CommandBase {
                     result.handlersFailed,
                     result.discoveredHandlers,
                     result.failedHandlerReasons,
-                    result.recipes.size()
+                    result.recipes.size(),
+                    result.recipes
             );
 
             sender.addChatMessage(new ChatComponentText(
