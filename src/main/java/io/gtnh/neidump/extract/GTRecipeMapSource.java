@@ -71,7 +71,8 @@ public class GTRecipeMapSource implements IRecipeSource {
         if (hidden instanceof Boolean && ((Boolean) hidden)) return null;
 
         int idx = context.incrIndex(mapName);
-        ExportRecipe recipe = new ExportRecipe("gregtech:machine", mapName + "/" + idx);
+        String type = deriveTypeFromMapName(mapName);
+        ExportRecipe recipe = new ExportRecipe(type, mapName + "/" + idx);
 
         if (machineDisplayName != null && !machineDisplayName.isEmpty()) {
             recipe.putExtra("machine", machineDisplayName);
@@ -239,5 +240,33 @@ public class GTRecipeMapSource implements IRecipeSource {
         if (eut <= 134217728) return "UMV";
         if (eut <= 536870912) return "UXV";
         return "MAX+";
+    }
+
+    /** Map a GT RecipeMap name to a recipe type. */
+    static String deriveTypeFromMapName(String mapName) {
+        if (mapName == null) return "gregtech:machine";
+        String lower = mapName.toLowerCase(java.util.Locale.ROOT);
+
+        // Core GregTech / GT++ / GalacticGreg maps
+        if (lower.startsWith("gt.") || lower.startsWith("gtpp.")
+                || lower.startsWith("gg.") || lower.startsWith("gtnh")
+                || lower.startsWith("bartworks") || lower.startsWith("bw.")
+                || lower.startsWith("kubatech") || lower.startsWith("gtnhlanth")
+                || lower.startsWith("miscutils") || lower.contains("gregtech"))
+            return "gregtech:machine";
+
+        // CropsNH
+        if (lower.contains("cropsnh") || lower.contains("crop"))
+            return "modded:breeding_or_mutation";
+
+        // Spinning wheel, drying rack, etc.
+        if (lower.contains("spinning") || lower.contains("drying"))
+            return "modded:machine_recipe";
+
+        // Generic machine recipe for unknown maps
+        if (lower.contains("recipe") || lower.contains("recipes"))
+            return "modded:machine_recipe";
+
+        return "gregtech:machine";
     }
 }
