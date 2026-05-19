@@ -1,4 +1,4 @@
-package io.gtnh.neidump.nei;
+package io.gtnh.neidump.extract;
 
 import java.io.InputStream;
 import java.util.HashMap;

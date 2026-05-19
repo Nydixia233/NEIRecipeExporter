@@ -1,4 +1,4 @@
-package io.gtnh.neidump.nei;
+package io.gtnh.neidump.extract;
 
 import cpw.mods.fml.common.registry.GameRegistry;
 import io.gtnh.neidump.model.ExportRecipe;
@@ -421,22 +421,7 @@ public class NEIRecipeExtractor {
         return out;
     }
 
-    private boolean irecipeDiagnosticsDone = false;
-
     private ExportRecipe convertIRecipe(Object irecipe) {
-        // One-time diagnostics on the first IRecipe object
-        if (!irecipeDiagnosticsDone) {
-            irecipeDiagnosticsDone = true;
-            Class<?> rc = irecipe.getClass();
-            System.out.println("[NEIExport] First IRecipe class: " + rc.getName());
-            for (java.lang.reflect.Method m : rc.getMethods()) {
-                if (m.getParameterTypes().length <= 1 && m.getReturnType() != void.class) {
-                    System.out.println("[NEIExport]   method: " + m.getReturnType().getSimpleName()
-                            + " " + m.getName() + "(" + m.getParameterTypes().length + ")");
-                }
-            }
-        }
-
         // --- output: try common method names (MCP + SRG) ---
         Object outputStack = null;
         for (String methodName : new String[]{"getRecipeOutput", "func_77571_b",
@@ -595,67 +580,94 @@ public class NEIRecipeExtractor {
         List<ExportRecipe> out = new ArrayList<ExportRecipe>();
 
         // ---- Strategy A: handler.getCache() -----------------------------
-        Object cache = ReflectionUtils.invokeNoArg(handler, "getCache");
-        if (cache instanceof List && !((List<?>) cache).isEmpty()) {
-            out.addAll(extractFromCachedRecipeList(handler, (List<Object>) cache));
-            attachCatalysts(handler, out);
-            return out;
+        try {
+            Object cache = ReflectionUtils.invokeNoArg(handler, "getCache");
+            if (cache instanceof List && !((List<?>) cache).isEmpty()) {
+                out.addAll(extractFromCachedRecipeList(handler, (List<Object>) cache));
+                attachCatalysts(handler, out);
+                return out;
+            }
+        } catch (Exception e) {
+            System.err.println("[NEIExport] Strategy A failed for "
+                    + handler.getClass().getName() + ": " + e);
         }
 
         // ---- Strategy B: trigger loadCraftingRecipes(id, new Object[0]) -
-        String handlerId = strVal(ReflectionUtils.invokeNoArg(handler, METH_GET_HANDLER_ID));
-        if (handlerId == null) {
-            handlerId = strVal(ReflectionUtils.invokeNoArg(handler, METH_GET_OVERLAY_ID));
-        }
-        if (handlerId == null) handlerId = handler.getClass().getName();
+        try {
+            String handlerId = strVal(ReflectionUtils.invokeNoArg(handler, METH_GET_HANDLER_ID));
+            if (handlerId == null) {
+                handlerId = strVal(ReflectionUtils.invokeNoArg(handler, METH_GET_OVERLAY_ID));
+            }
+            if (handlerId == null) handlerId = handler.getClass().getName();
 
-        Object[] emptyArr = new Object[0];
-        ReflectionUtils.invokeStringObjectArray(
-                handler, "loadCraftingRecipes", handlerId, emptyArr);
+            Object[] emptyArr = new Object[0];
+            ReflectionUtils.invokeStringObjectArray(
+                    handler, "loadCraftingRecipes", handlerId, emptyArr);
 
-        Object arecipes = ReflectionUtils.readField(handler, "arecipes");
-        if (arecipes instanceof List && !((List<?>) arecipes).isEmpty()) {
-            out.addAll(extractFromCachedRecipeList(handler, (List<Object>) arecipes));
-            attachCatalysts(handler, out);
-            return out;
+            Object arecipes = ReflectionUtils.readField(handler, "arecipes");
+            if (arecipes instanceof List && !((List<?>) arecipes).isEmpty()) {
+                out.addAll(extractFromCachedRecipeList(handler, (List<Object>) arecipes));
+                attachCatalysts(handler, out);
+                return out;
+            }
+        } catch (Exception e) {
+            System.err.println("[NEIExport] Strategy B failed for "
+                    + handler.getClass().getName() + ": " + e);
         }
 
         // ---- Strategy C: getRecipeHandler returns new instance ----------
-        Object loaded = ReflectionUtils.invokeStringObjectArray(
-                handler, METH_GET_RECIPE_HANDLER, handlerId, emptyArr);
-        if (loaded == null) {
-            loaded = ReflectionUtils.invokeStringObjectArray(
-                    handler, METH_GET_USAGE_HANDLER, handlerId, emptyArr);
-        }
-        if (loaded != null) {
-            Object loadedRecipes = ReflectionUtils.readField(loaded, "arecipes");
-            if (loadedRecipes instanceof List && !((List<?>) loadedRecipes).isEmpty()) {
-                out.addAll(extractFromCachedRecipeList(loaded, (List<Object>) loadedRecipes));
-                attachCatalysts(handler, out);
-                return out;
+        try {
+            String handlerId2 = strVal(ReflectionUtils.invokeNoArg(handler, METH_GET_HANDLER_ID));
+            if (handlerId2 == null) {
+                handlerId2 = strVal(ReflectionUtils.invokeNoArg(handler, METH_GET_OVERLAY_ID));
             }
-            Object loadedCache = ReflectionUtils.invokeNoArg(loaded, "getCache");
-            if (loadedCache instanceof List && !((List<?>) loadedCache).isEmpty()) {
-                out.addAll(extractFromCachedRecipeList(loaded, (List<Object>) loadedCache));
-                attachCatalysts(handler, out);
-                return out;
+            if (handlerId2 == null) handlerId2 = handler.getClass().getName();
+
+            Object[] emptyArr = new Object[0];
+            Object loaded = ReflectionUtils.invokeStringObjectArray(
+                    handler, METH_GET_RECIPE_HANDLER, handlerId2, emptyArr);
+            if (loaded == null) {
+                loaded = ReflectionUtils.invokeStringObjectArray(
+                        handler, METH_GET_USAGE_HANDLER, handlerId2, emptyArr);
             }
+            if (loaded != null) {
+                Object loadedRecipes = ReflectionUtils.readField(loaded, "arecipes");
+                if (loadedRecipes instanceof List && !((List<?>) loadedRecipes).isEmpty()) {
+                    out.addAll(extractFromCachedRecipeList(loaded, (List<Object>) loadedRecipes));
+                    attachCatalysts(handler, out);
+                    return out;
+                }
+                Object loadedCache = ReflectionUtils.invokeNoArg(loaded, "getCache");
+                if (loadedCache instanceof List && !((List<?>) loadedCache).isEmpty()) {
+                    out.addAll(extractFromCachedRecipeList(loaded, (List<Object>) loadedCache));
+                    attachCatalysts(handler, out);
+                    return out;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[NEIExport] Strategy C failed for "
+                    + handler.getClass().getName() + ": " + e);
         }
 
         // ---- Strategy D: scan for any non-empty recipe-like List field --
-        for (java.lang.reflect.Field f : handler.getClass().getDeclaredFields()) {
-            String fn = f.getName().toLowerCase();
-            if (fn.contains("recipe") || fn.contains("cached") || fn.contains("list")) {
-                try {
-                    f.setAccessible(true);
-                    Object val = f.get(handler);
-                    if (val instanceof List && !((List<?>) val).isEmpty()) {
-                        out.addAll(extractFromCachedRecipeList(handler, (List<Object>) val));
-                        attachCatalysts(handler, out);
-                        return out;
-                    }
-                } catch (Exception ignored) {}
+        try {
+            for (java.lang.reflect.Field f : handler.getClass().getDeclaredFields()) {
+                String fn = f.getName().toLowerCase();
+                if (fn.contains("recipe") || fn.contains("cached") || fn.contains("list")) {
+                    try {
+                        f.setAccessible(true);
+                        Object val = f.get(handler);
+                        if (val instanceof List && !((List<?>) val).isEmpty()) {
+                            out.addAll(extractFromCachedRecipeList(handler, (List<Object>) val));
+                            attachCatalysts(handler, out);
+                            return out;
+                        }
+                    } catch (Exception ignored) {}
+                }
             }
+        } catch (Exception e) {
+            System.err.println("[NEIExport] Strategy D failed for "
+                    + handler.getClass().getName() + ": " + e);
         }
 
         return out;
@@ -736,75 +748,79 @@ public class NEIRecipeExtractor {
 
         for (Object cached : cachedRecipes) {
             if (cached == null) { idx++; continue; }
-
-            // ---- Specialised path: GTNEIDefaultHandler$CachedDefaultRecipe
-            // has a mRecipe field referencing the source GTRecipe with all
-            // fluids / EU/t / duration data. Convert it directly.
-            Object gtRecipe = ReflectionUtils.readField(cached, "mRecipe");
-            if (gtRecipe != null && CLS_GT_RECIPE.equals(gtRecipe.getClass().getName())) {
-                ExportRecipe r = convertGTRecipe(gtRecipe,
-                        handlerClassName, handlerRecipeName);
-                if (r != null) {
-                    r.setType(handlerType);
-                    r.putExtra("handler_class", handlerClassName);
-                    out.add(r);
+            try {
+                // ---- Specialised path: GTNEIDefaultHandler$CachedDefaultRecipe
+                // has a mRecipe field referencing the source GTRecipe with all
+                // fluids / EU/t / duration data. Convert it directly.
+                Object gtRecipe = ReflectionUtils.readField(cached, "mRecipe");
+                if (gtRecipe != null && CLS_GT_RECIPE.equals(gtRecipe.getClass().getName())) {
+                    ExportRecipe r = convertGTRecipe(gtRecipe,
+                            handlerClassName, handlerRecipeName);
+                    if (r != null) {
+                        r.setType(handlerType);
+                        r.putExtra("handler_class", handlerClassName);
+                        out.add(r);
+                    }
+                    idx++;
+                    continue;
                 }
-                idx++;
-                continue;
-            }
 
-            ExportRecipe recipe = new ExportRecipe(handlerType,
-                    handlerClassName + "/" + incrIndex(handlerClassName));
+                ExportRecipe recipe = new ExportRecipe(handlerType,
+                        handlerClassName + "/" + incrIndex(handlerClassName));
 
-            // ---- Inputs via getIngredients() --------------------------
-            List<ItemStack> ingList = new ArrayList<ItemStack>();
-            Object ingRaw = ReflectionUtils.invokeNoArg(cached, "getIngredients");
-            if (ingRaw instanceof List) {
-                for (Object ps : (List<Object>) ingRaw) {
-                    ItemStack s = extractSingleStackFromPositioned(ps);
-                    if (s != null) ingList.add(s);
+                // ---- Inputs via getIngredients() --------------------------
+                List<ItemStack> ingList = new ArrayList<ItemStack>();
+                Object ingRaw = ReflectionUtils.invokeNoArg(cached, "getIngredients");
+                if (ingRaw instanceof List) {
+                    for (Object ps : (List<Object>) ingRaw) {
+                        ItemStack s = extractSingleStackFromPositioned(ps);
+                        if (s != null) ingList.add(s);
+                    }
                 }
-            }
-            int slot = 1;
-            for (ItemStack stack : ingList) {
-                recipe.putInputItem(slot, stack, stackToKey(stack));
-                slot++;
-            }
-
-            // ---- Outputs: getResult() + getOtherStacks() --------------
-            List<ItemStack> outList = new ArrayList<ItemStack>();
-            Object resRaw = ReflectionUtils.invokeNoArg(cached, "getResult");
-            ItemStack result = extractSingleStackFromPositioned(resRaw);
-            if (result != null) outList.add(result);
-            Object otherRaw = ReflectionUtils.invokeNoArg(cached, "getOtherStacks");
-            if (otherRaw instanceof List) {
-                for (Object ps : (List<Object>) otherRaw) {
-                    ItemStack s = extractSingleStackFromPositioned(ps);
-                    if (s != null) outList.add(s);
+                int slot = 1;
+                for (ItemStack stack : ingList) {
+                    recipe.putInputItem(slot, stack, stackToKey(stack));
+                    slot++;
                 }
-            }
-            slot = 1;
-            for (ItemStack stack : outList) {
-                recipe.putOutputItem(slot, stack, stackToKey(stack));
-                slot++;
-            }
 
-            String name = handlerRecipeName;
-            if (name == null || name.isEmpty()) {
-                // fallback: use first output item display name
-                if (!outList.isEmpty() && outList.get(0) != null) {
-                    name = stripFormat(outList.get(0).getDisplayName());
+                // ---- Outputs: getResult() + getOtherStacks() --------------
+                List<ItemStack> outList = new ArrayList<ItemStack>();
+                Object resRaw = ReflectionUtils.invokeNoArg(cached, "getResult");
+                ItemStack result = extractSingleStackFromPositioned(resRaw);
+                if (result != null) outList.add(result);
+                Object otherRaw = ReflectionUtils.invokeNoArg(cached, "getOtherStacks");
+                if (otherRaw instanceof List) {
+                    for (Object ps : (List<Object>) otherRaw) {
+                        ItemStack s = extractSingleStackFromPositioned(ps);
+                        if (s != null) outList.add(s);
+                    }
                 }
+                slot = 1;
+                for (ItemStack stack : outList) {
+                    recipe.putOutputItem(slot, stack, stackToKey(stack));
+                    slot++;
+                }
+
+                String name = handlerRecipeName;
                 if (name == null || name.isEmpty()) {
-                    name = handlerClassName + "/" + idx;
+                    if (!outList.isEmpty() && outList.get(0) != null) {
+                        name = stripFormat(outList.get(0).getDisplayName());
+                    }
+                    if (name == null || name.isEmpty()) {
+                        name = handlerClassName + "/" + idx;
+                    }
                 }
-            }
-            recipe.setName(name);
-            recipe.putExtra("handler_class", handlerClassName);
-            idx++;
+                recipe.setName(name);
+                recipe.putExtra("handler_class", handlerClassName);
+                idx++;
 
-            if (!recipe.getInput().isEmpty() || !recipe.getOutput().isEmpty()) {
-                out.add(recipe);
+                if (!recipe.getInput().isEmpty() || !recipe.getOutput().isEmpty()) {
+                    out.add(recipe);
+                }
+            } catch (Exception e) {
+                // Single bad recipe (e.g. Forestry null species) must not crash
+                // the entire handler extraction.
+                idx++;
             }
         }
         return out;

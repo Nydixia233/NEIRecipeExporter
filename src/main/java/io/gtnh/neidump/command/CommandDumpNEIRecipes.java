@@ -1,7 +1,7 @@
 package io.gtnh.neidump.command;
 
 import io.gtnh.neidump.export.RecipeJsonWriter;
-import io.gtnh.neidump.nei.NEIRecipeExtractor;
+import io.gtnh.neidump.extract.NEIRecipeExtractor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
