@@ -54,5 +54,5 @@ jar {
                 'Implementation-Version': project.version
         )
     }
-    archiveBaseName.set('neirecipeexporter')
+    archiveBaseName.set('NEIRecipeExporter')
 }
