@@ -37,10 +37,16 @@ public final class MergeDedup {
         }
     }
 
-    /** Copy catalysts / machine / handler_class from source if target lacks them. */
+    /** Copy catalysts / machine / handler_class / better type from source to target. */
     private static void mergeFields(ExportRecipe target, ExportRecipe source) {
         Map<String, Object> targetExtra = target.getExtra();
         Map<String, Object> sourceExtra = source.getExtra();
+
+        // Upgrade generic gregtech:machine to more specific handler type
+        if ("gregtech:machine".equals(target.getType())
+                && !"gregtech:machine".equals(source.getType())) {
+            target.setType(source.getType());
+        }
 
         if (sourceExtra.get("catalysts") != null
                 && (targetExtra.get("catalysts") == null

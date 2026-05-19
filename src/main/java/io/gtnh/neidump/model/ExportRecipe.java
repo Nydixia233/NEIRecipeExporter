@@ -114,6 +114,10 @@ public class ExportRecipe {
             display = display.replaceAll("\\u00a7.", "");
             item.put("display", display);
         }
+        // NBT tag (for items with non-empty NBT, e.g. enchanted books, circuit configs)
+        if (stack.stackTagCompound != null && !stack.stackTagCompound.hasNoTags()) {
+            item.put("nbt", stack.stackTagCompound.toString());
+        }
         return item;
     }
 }
