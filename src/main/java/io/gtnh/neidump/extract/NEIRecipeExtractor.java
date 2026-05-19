@@ -13,6 +13,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Extracts recipes from GTNH using two strategies:
@@ -83,6 +84,7 @@ public class NEIRecipeExtractor {
     public ExtractionResult extractAll() {
         recipeIndexByMap.clear();
         List<ExportRecipe> exported = new ArrayList<ExportRecipe>();
+        Set<String> seenFingerprints = new LinkedHashSet<String>();
         Map<String, String> failedReasons = new LinkedHashMap<String, String>();
         List<String> discovered = new ArrayList<String>();
         int failed = 0;
@@ -90,7 +92,7 @@ public class NEIRecipeExtractor {
         // ---- Strategy 1: GregTech recipe maps (bulk of machine recipes) --
         try {
             int before = exported.size();
-            exported.addAll(extractGregTechRecipes());
+            addDeduped(exported, seenFingerprints, extractGregTechRecipes());
             System.out.println("[NEIExport] GregTech strategy added "
                     + (exported.size() - before) + " recipes");
         } catch (Throwable e) {
@@ -101,7 +103,7 @@ public class NEIRecipeExtractor {
         // ---- Strategy 1.5: Vanilla crafting manager (CraftingManager) ----
         try {
             int before = exported.size();
-            exported.addAll(extractVanillaCraftingRecipes());
+            addDeduped(exported, seenFingerprints, extractVanillaCraftingRecipes());
             System.out.println("[NEIExport] CraftingManager strategy added "
                     + (exported.size() - before) + " recipes");
         } catch (Throwable e) {
@@ -116,7 +118,7 @@ public class NEIRecipeExtractor {
             discovered.add(cls);
             try {
                 List<ExportRecipe> recs = extractFromHandler(handler);
-                exported.addAll(recs);
+                addDeduped(exported, seenFingerprints, recs);
             } catch (Exception e) {
                 failed++;
                 failedReasons.put(cls, e.getClass().getSimpleName() + ": "
@@ -842,6 +844,36 @@ public class NEIRecipeExtractor {
     // ========================================================================
     //  Utilities
     // ========================================================================
+
+    /** Deduplicate by input/output fingerprint, keeping first occurrence. */
+    private static void addDeduped(List<ExportRecipe> dest, Set<String> seen,
+                                    List<ExportRecipe> candidates) {
+        for (ExportRecipe r : candidates) {
+            String fp = recipeFingerprint(r);
+            if (seen.add(fp)) {
+                dest.add(r);
+            }
+        }
+    }
+
+    /** Stable fingerprint: type + sorted input ids + sorted output ids. */
+    private static String recipeFingerprint(ExportRecipe r) {
+        StringBuilder sb = new StringBuilder(r.getType());
+        TreeSet<String> ins = new TreeSet<String>();
+        for (Map.Entry<String, Map<String, String>> e : r.getInput().entrySet()) {
+            Map<String, String> v = e.getValue();
+            ins.add(v.get("id") + "@" + v.get("count") + "@" + v.get("meta"));
+        }
+        for (String s : ins) { sb.append('|').append(s); }
+        sb.append("->");
+        TreeSet<String> outs = new TreeSet<String>();
+        for (Map.Entry<String, Map<String, String>> e : r.getOutput().entrySet()) {
+            Map<String, String> v = e.getValue();
+            outs.add(v.get("id") + "@" + v.get("count") + "@" + v.get("meta"));
+        }
+        for (String s : outs) { sb.append('|').append(s); }
+        return sb.toString();
+    }
 
     private String handlerType(Object handler) {
         String simpleName = handler.getClass().getSimpleName();
