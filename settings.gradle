@@ -1,0 +1,12 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = 'GTNHBlobs'
+            url = uri('https://nexus.gtnewhorizons.com/repository/public/')
+        }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'nei-recipe-exporter'

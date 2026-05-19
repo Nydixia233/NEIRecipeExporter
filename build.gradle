@@ -1,0 +1,58 @@
+plugins {
+    id 'com.gtnewhorizons.retrofuturagradle' version '1.4.0'
+}
+
+group = 'io.gtnh.neidump'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('compileJava').configure {
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+    options.release.set(8)
+}
+
+minecraft {
+    mcVersion = '1.7.10'
+    username = 'Developer'
+    injectedTags.put('VERSION', project.version)
+}
+
+repositories {
+    maven {
+        name = 'GTNH Maven'
+        url = 'https://nexus.gtnewhorizons.com/repository/public/'
+    }
+    mavenCentral()
+}
+
+// NEI / CodeChicken / GregTech are accessed entirely via reflection at runtime,
+// so no compile-time dependencies are required.
+dependencies {
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('mcmod.info') {
+        expand 'version': project.version, 'modId': 'neirecipeexporter', 'modName': 'NEI Recipe Exporter'
+    }
+}
+
+jar {
+    manifest {
+        attributes(
+                'Implementation-Title': 'NEI Recipe Exporter',
+                'Implementation-Version': project.version
+        )
+    }
+    archiveBaseName.set('neirecipeexporter')
+}
