@@ -16,7 +16,7 @@ import io.gtnh.neidump.proxy.CommonProxy;
 public class NEIRecipeDumpMod {
     public static final String MOD_ID = "neirecipeexporter";
     public static final String MOD_NAME = "NEI Recipe Exporter";
-    public static final String VERSION = "1.0.0";
+    public static final String VERSION = "1.0.1";
 
     @SidedProxy(
             clientSide = "io.gtnh.neidump.proxy.ClientProxy",
