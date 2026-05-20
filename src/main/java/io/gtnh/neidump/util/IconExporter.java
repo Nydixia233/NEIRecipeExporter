@@ -1,0 +1,138 @@
+package io.gtnh.neidump.util;
+
+import io.gtnh.neidump.model.ExportRecipe;
+import io.gtnh.neidump.util.ReflectionUtils;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.entity.RenderItem;
+import net.minecraft.client.renderer.RenderHelper;
+import net.minecraft.client.shader.Framebuffer;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.FluidStack;
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.nio.IntBuffer;
+import java.util.*;
+
+/**
+ * Renders item/fluid icons using Minecraft's GL context and saves as PNG.
+ */
+public class IconExporter {
+
+    private static final int ICON_SIZE = 32;
+
+    public static int exportIcons(List<ExportRecipe> recipes, File iconDir) {
+        Set<String> uniqueItems = collectUniqueItems(recipes);
+        Minecraft mc = Minecraft.getMinecraft();
+        File itemsDir = new File(iconDir, "items");
+        itemsDir.mkdirs();
+
+        int count = 0;
+        for (String key : uniqueItems) {
+            try {
+                String[] parts = key.split("@", 2);
+                String id = parts[0];
+                int meta = parts.length > 1 ? Integer.parseInt(parts[1]) : 0;
+
+                ItemStack stack = makeItemStack(id, meta);
+                if (stack == null) continue;
+
+                BufferedImage img = renderItemStack(mc, stack);
+                if (img != null) {
+                    String safeId = id.replace(":", "_");
+                    File out = new File(itemsDir, safeId + "@" + meta + ".png");
+                    out.getParentFile().mkdirs();
+                    ImageIO.write(img, "PNG", out);
+                    count++;
+                    if (count % 500 == 0) {
+                        System.out.println("[NEIExport] Icons: " + count + "/" + uniqueItems.size());
+                    }
+                }
+            } catch (Exception ignored) {
+                // Individual icon failure must not stop the batch
+            }
+        }
+        System.out.println("[NEIExport] Exported " + count + " item icons to " + itemsDir);
+        return count;
+    }
+
+    private static Set<String> collectUniqueItems(List<ExportRecipe> recipes) {
+        Set<String> set = new LinkedHashSet<>();
+        for (ExportRecipe r : recipes) {
+            collectFromSlotMap(r.getInput(), set);
+            collectFromSlotMap(r.getOutput(), set);
+        }
+        return set;
+    }
+
+    private static void collectFromSlotMap(Map<String, Map<String, String>> slots, Set<String> output) {
+        for (Map.Entry<String, Map<String, String>> e : slots.entrySet()) {
+            Map<String, String> v = e.getValue();
+            if (v == null) continue;
+            String id = v.get("id");
+            if (id == null || id.equals("unknown:unknown")) continue;
+            String meta = v.containsKey("meta") ? v.get("meta") : "0";
+            output.add(id + "@" + meta);
+        }
+    }
+
+    private static ItemStack makeItemStack(String id, int meta) {
+        // Parse "modid:name" → Item
+        if (!id.contains(":")) return null;
+        String[] parts = id.split(":", 2);
+
+        // Try to find item by registry name
+        Item item = (Item) Item.itemRegistry.getObject(id);
+        if (item == null) {
+            // Try finding block
+            net.minecraft.block.Block block = (net.minecraft.block.Block) net.minecraft.block.Block.blockRegistry.getObject(id);
+            if (block != null) {
+                item = Item.getItemFromBlock(block);
+            }
+        }
+        if (item == null) return null;
+        return new ItemStack(item, 1, meta);
+    }
+
+    private static BufferedImage renderItemStack(Minecraft mc, ItemStack stack) {
+        Framebuffer fb = new Framebuffer(ICON_SIZE, ICON_SIZE, false);
+        fb.bindFramebuffer(true);
+
+        GL11.glClearColor(0, 0, 0, 0);
+        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+
+        RenderHelper.enableGUIStandardItemLighting();
+        // RenderItem.instance is private — access via reflection
+        Object ri = ReflectionUtils.readStaticField(
+                "net.minecraft.client.renderer.entity.RenderItem", "instance");
+        if (ri instanceof net.minecraft.client.renderer.entity.RenderItem) {
+            ((net.minecraft.client.renderer.entity.RenderItem) ri)
+                    .renderItemAndEffectIntoGUI(mc.fontRenderer, mc.getTextureManager(), stack, 0, 0);
+        }
+        RenderHelper.disableStandardItemLighting();
+
+        int[] pixels = new int[ICON_SIZE * ICON_SIZE];
+        IntBuffer buffer = BufferUtils.createIntBuffer(ICON_SIZE * ICON_SIZE);
+        GL11.glReadPixels(0, 0, ICON_SIZE, ICON_SIZE, GL12.GL_BGRA, GL11.GL_UNSIGNED_BYTE, buffer);
+        buffer.get(pixels);
+
+        fb.unbindFramebuffer();
+        fb.deleteFramebuffer();
+
+        // Flip vertically (OpenGL bottom-left origin)
+        BufferedImage img = new BufferedImage(ICON_SIZE, ICON_SIZE, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < ICON_SIZE; y++) {
+            for (int x = 0; x < ICON_SIZE; x++) {
+                img.setRGB(x, ICON_SIZE - 1 - y, pixels[y * ICON_SIZE + x]);
+            }
+        }
+        return img;
+    }
+}

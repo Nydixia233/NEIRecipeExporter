@@ -3,6 +3,7 @@ package io.gtnh.neidump.command;
 import io.gtnh.neidump.export.RecipeJsonWriter;
 import io.gtnh.neidump.extract.NEIRecipeExtractor;
 import io.gtnh.neidump.model.ExportRecipe;
+import io.gtnh.neidump.util.IconExporter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
