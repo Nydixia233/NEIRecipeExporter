@@ -118,6 +118,12 @@ public class CommandDumpNEIRecipes extends CommandBase {
                             + ", file=" + output.getAbsolutePath()
                             + ", report=" + report.getAbsolutePath()
             ));
+
+            // Export item icons
+            sender.addChatMessage(new ChatComponentText("[NEI Export] Exporting item icons..."));
+            File iconDir = new File(output.getParentFile(), "icons");
+            int iconCount = IconExporter.exportIcons(filtered, iconDir);
+            sender.addChatMessage(new ChatComponentText("[NEI Export] Icons: " + iconCount + " exported to " + iconDir.getAbsolutePath()));
         } catch (Exception e) {
             sender.addChatMessage(new ChatComponentText("[NEI Export] Failed: " + e.getMessage()));
         }
