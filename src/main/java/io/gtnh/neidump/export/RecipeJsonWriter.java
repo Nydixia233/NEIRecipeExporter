@@ -11,8 +11,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.List;
-import java.util.Map;
 
 public class RecipeJsonWriter {
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create();
@@ -61,8 +59,8 @@ public class RecipeJsonWriter {
                             List<String> discoveredHandlers,
                             Map<String, String> failedHandlerReasons,
                             int recipeCount,
-                            List<ExportRecipe> recipes,
-                            Map<String, Integer> typeCounts) throws IOException {
+                            Map<String, Integer> typeCounts,
+                            Map<String, Integer> modCounts) throws IOException {
         File parent = reportFile.getParentFile();
         if (parent != null && !parent.exists()) {
             parent.mkdirs();
@@ -76,10 +74,7 @@ public class RecipeJsonWriter {
         report.put("failed_handler_reasons", failedHandlerReasons);
 
         report.put("type_counts", typeCounts != null ? typeCounts : new LinkedHashMap<>());
-
-        // Mod counts from recipe items (one-pass)
-        Map<String, Integer> modCounts = new LinkedHashMap<>();
-        report.put("mod_counts", modCounts);
+        report.put("mod_counts", modCounts != null ? modCounts : new LinkedHashMap<>());
 
         FileWriter writer = null;
         try {

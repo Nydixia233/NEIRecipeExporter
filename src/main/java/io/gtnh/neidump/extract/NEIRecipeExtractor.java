@@ -39,16 +39,18 @@ public class NEIRecipeExtractor {
         public final Map<String, String> failedHandlerReasons;
         public final List<String> discoveredHandlers;
         public final Map<String, Integer> typeCounts;
+        public final Map<String, Integer> modCounts;
 
         public ExtractionResult(List<ExportRecipe> recipes, int handlersSeen, int handlersFailed,
                                 Map<String, String> failedHandlerReasons, List<String> discoveredHandlers,
-                                Map<String, Integer> typeCounts) {
+                                Map<String, Integer> typeCounts, Map<String, Integer> modCounts) {
             this.recipes = recipes;
             this.handlersSeen = handlersSeen;
             this.handlersFailed = handlersFailed;
             this.failedHandlerReasons = failedHandlerReasons;
             this.discoveredHandlers = discoveredHandlers;
             this.typeCounts = typeCounts;
+            this.modCounts = modCounts;
         }
     }
 
@@ -78,18 +80,37 @@ public class NEIRecipeExtractor {
             }
         }
 
-        // NEIHandlerSource internally discovers handlers; just count them.
-        int handlerCount = NEIHandlerSource.discoverHandlers().size();
+        // Collect handler stats and discoverHandlers (cached)
+        Set<Object> handlers = NEIHandlerSource.discoverHandlers();
+        List<String> handlerClassNames = new ArrayList<>();
+        for (Object h : handlers) {
+            handlerClassNames.add(h.getClass().getName());
+        }
 
-        // Type counts for report
+        // Type and mod counts from exported recipes
         Map<String, Integer> typeCounts = new LinkedHashMap<>();
+        Map<String, Integer> modCounts = new LinkedHashMap<>();
         for (ExportRecipe r : exported) {
             String t = r.getType();
             typeCounts.put(t, typeCounts.getOrDefault(t, 0) + 1);
+            for (Map.Entry<String, Map<String, String>> e : r.getInput().entrySet()) {
+                String id = e.getValue().get("id");
+                if (id != null && id.contains(":")) {
+                    String mod = id.substring(0, id.indexOf(':'));
+                    modCounts.put(mod, modCounts.getOrDefault(mod, 0) + 1);
+                }
+            }
+            for (Map.Entry<String, Map<String, String>> e : r.getOutput().entrySet()) {
+                String id = e.getValue().get("id");
+                if (id != null && id.contains(":")) {
+                    String mod = id.substring(0, id.indexOf(':'));
+                    modCounts.put(mod, modCounts.getOrDefault(mod, 0) + 1);
+                }
+            }
         }
 
-        return new ExtractionResult(exported, handlerCount, failed, failedReasons,
-                new ArrayList<String>(), typeCounts);
+        return new ExtractionResult(exported, handlers.size(), failed, failedReasons,
+                handlerClassNames, typeCounts, modCounts);
     }
 
     // ========================================================================
