@@ -119,11 +119,17 @@ public class CommandDumpNEIRecipes extends CommandBase {
                             + ", report=" + report.getAbsolutePath()
             ));
 
-            // Export item icons
+            // Export item icons on the client render thread
             sender.addChatMessage(new ChatComponentText("[NEI Export] Exporting item icons..."));
-            File iconDir = new File(output.getParentFile(), "icons");
-            int iconCount = IconExporter.exportIcons(filtered, iconDir);
-            sender.addChatMessage(new ChatComponentText("[NEI Export] Icons: " + iconCount + " exported to " + iconDir.getAbsolutePath()));
+            final File iconDir = new File(output.getParentFile(), "icons");
+            final List<ExportRecipe> recipeList = new ArrayList<ExportRecipe>(filtered);
+            Minecraft.getMinecraft().func_152344_a(new Runnable() {
+                public void run() {
+                    int iconCount = IconExporter.exportIcons(recipeList, iconDir);
+                    System.out.println("[NEIExport] Icons: " + iconCount + " exported to " + iconDir);
+                }
+            });
+            sender.addChatMessage(new ChatComponentText("[NEI Export] Icons queued for export..."));
         } catch (Exception e) {
             sender.addChatMessage(new ChatComponentText("[NEI Export] Failed: " + e.getMessage()));
         }
