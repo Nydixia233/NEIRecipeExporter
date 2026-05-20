@@ -100,39 +100,34 @@ public class IconExporter {
     }
 
     private static BufferedImage renderItemStack(Minecraft mc, ItemStack stack) {
-        Framebuffer fb = new Framebuffer(ICON_SIZE, ICON_SIZE, false);
-        fb.bindFramebuffer(true);
-
-        GL11.glClearColor(0, 0, 0, 0);
-        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-
-        RenderHelper.enableGUIStandardItemLighting();
-        // RenderItem.instance is private — access via reflection
-        Object ri = ReflectionUtils.readStaticField(
-                "net.minecraft.client.renderer.entity.RenderItem", "instance");
-        if (ri instanceof net.minecraft.client.renderer.entity.RenderItem) {
-            ((net.minecraft.client.renderer.entity.RenderItem) ri)
-                    .renderItemAndEffectIntoGUI(mc.fontRenderer, mc.getTextureManager(), stack, 0, 0);
-        }
-        RenderHelper.disableStandardItemLighting();
-
-        int[] pixels = new int[ICON_SIZE * ICON_SIZE];
-        IntBuffer buffer = BufferUtils.createIntBuffer(ICON_SIZE * ICON_SIZE);
-        GL11.glReadPixels(0, 0, ICON_SIZE, ICON_SIZE, GL12.GL_BGRA, GL11.GL_UNSIGNED_BYTE, buffer);
-        buffer.get(pixels);
-
-        fb.unbindFramebuffer();
-        fb.deleteFramebuffer();
-
-        // Flip vertically (OpenGL bottom-left origin)
-        BufferedImage img = new BufferedImage(ICON_SIZE, ICON_SIZE, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < ICON_SIZE; y++) {
-            for (int x = 0; x < ICON_SIZE; x++) {
-                img.setRGB(x, ICON_SIZE - 1 - y, pixels[y * ICON_SIZE + x]);
+        Framebuffer fb = null;
+        try {
+            fb = new Framebuffer(ICON_SIZE, ICON_SIZE, false);
+            fb.bindFramebuffer(true);
+            GL11.glClearColor(0, 0, 0, 0);
+            GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            RenderHelper.enableGUIStandardItemLighting();
+            Object ri = ReflectionUtils.readStaticField("net.minecraft.client.renderer.entity.RenderItem", "instance");
+            if (ri instanceof net.minecraft.client.renderer.entity.RenderItem) {
+                ((net.minecraft.client.renderer.entity.RenderItem) ri).renderItemAndEffectIntoGUI(mc.fontRenderer, mc.getTextureManager(), stack, 0, 0);
             }
+            RenderHelper.disableStandardItemLighting();
+            int[] pixels = new int[ICON_SIZE * ICON_SIZE];
+            IntBuffer buffer = BufferUtils.createIntBuffer(ICON_SIZE * ICON_SIZE);
+            GL11.glReadPixels(0, 0, ICON_SIZE, ICON_SIZE, GL12.GL_BGRA, GL11.GL_UNSIGNED_BYTE, buffer);
+            buffer.get(pixels);
+            fb.unbindFramebuffer();
+            BufferedImage img = new BufferedImage(ICON_SIZE, ICON_SIZE, BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < ICON_SIZE; y++)
+                for (int x = 0; x < ICON_SIZE; x++)
+                    img.setRGB(x, ICON_SIZE - 1 - y, pixels[y * ICON_SIZE + x]);
+            return img;
+        } catch (Throwable t) {
+            return null;
+        } finally {
+            if (fb != null) { try { fb.deleteFramebuffer(); } catch (Exception ignored) {} }
+            try { GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0); } catch (Exception ignored) {}
         }
-        return img;
     }
-}
