@@ -94,15 +94,6 @@ public class IconExporter {
         return total;
     }
 
-    private static Set<String> collectUniqueItems(List<ExportRecipe> recipes) {
-        Set<String> set = new LinkedHashSet<>();
-        for (ExportRecipe r : recipes) {
-            collectFromSlotMap(r.getInput(), set);
-            collectFromSlotMap(r.getOutput(), set);
-        }
-        return set;
-    }
-
     private static void collectFromSlotMap(Map<String, Map<String, String>> slots,
                                             Set<String> items, Set<String> fluids) {
         for (Map.Entry<String, Map<String, String>> e : slots.entrySet()) {
@@ -226,3 +217,4 @@ public class IconExporter {
             try { GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0); } catch (Exception ignored) {}
         }
     }
+}
