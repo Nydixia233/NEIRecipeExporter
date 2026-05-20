@@ -107,7 +107,7 @@ public class CommandDumpNEIRecipes extends CommandBase {
             writer.write(output, filtered, result.handlersSeen, result.handlersFailed, !strict);
             writer.writeReport(report, result.handlersSeen, result.handlersFailed,
                     result.discoveredHandlers, result.failedHandlerReasons,
-                    filtered.size(), filtered);
+                    filtered.size(), filtered, result.typeCounts);
 
             sender.addChatMessage(new ChatComponentText(
                     "[NEI Export] Done. recipes=" + filtered.size()

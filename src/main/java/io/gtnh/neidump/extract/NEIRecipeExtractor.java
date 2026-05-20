@@ -38,14 +38,17 @@ public class NEIRecipeExtractor {
         public final int handlersFailed;
         public final Map<String, String> failedHandlerReasons;
         public final List<String> discoveredHandlers;
+        public final Map<String, Integer> typeCounts;
 
         public ExtractionResult(List<ExportRecipe> recipes, int handlersSeen, int handlersFailed,
-                                Map<String, String> failedHandlerReasons, List<String> discoveredHandlers) {
+                                Map<String, String> failedHandlerReasons, List<String> discoveredHandlers,
+                                Map<String, Integer> typeCounts) {
             this.recipes = recipes;
             this.handlersSeen = handlersSeen;
             this.handlersFailed = handlersFailed;
             this.failedHandlerReasons = failedHandlerReasons;
             this.discoveredHandlers = discoveredHandlers;
+            this.typeCounts = typeCounts;
         }
     }
 
@@ -75,29 +78,18 @@ public class NEIRecipeExtractor {
             }
         }
 
-        // --- Collect handler stats from NEIHandlerSource ---
-        Set<Object> handlers = NEIHandlerSource.discoverHandlers();
-        discovered = new ArrayList<>();
-        for (Object h : handlers) {
-            String cls = h.getClass().getName();
-            discovered.add(cls);
-            // Check if this handler class previously failed (handled per-strategy now)
-        }
-        // Failure tracking is handled per-recipe/per-strategy in the source classes
+        // NEIHandlerSource internally discovers handlers; just count them.
+        int handlerCount = NEIHandlerSource.discoverHandlers().size();
 
-        // --- Type counts for report ---
+        // Type counts for report
         Map<String, Integer> typeCounts = new LinkedHashMap<>();
         for (ExportRecipe r : exported) {
             String t = r.getType();
             typeCounts.put(t, typeCounts.getOrDefault(t, 0) + 1);
         }
 
-        // Attach type counts to the first recipe's extra for report generation
-        if (!exported.isEmpty()) {
-            exported.get(0).putExtra("_type_counts", new LinkedHashMap<>(typeCounts));
-        }
-
-        return new ExtractionResult(exported, handlers.size(), failed, failedReasons, discovered);
+        return new ExtractionResult(exported, handlerCount, failed, failedReasons,
+                new ArrayList<String>(), typeCounts);
     }
 
     // ========================================================================

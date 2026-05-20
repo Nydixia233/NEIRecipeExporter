@@ -61,7 +61,8 @@ public class RecipeJsonWriter {
                             List<String> discoveredHandlers,
                             Map<String, String> failedHandlerReasons,
                             int recipeCount,
-                            List<ExportRecipe> recipes) throws IOException {
+                            List<ExportRecipe> recipes,
+                            Map<String, Integer> typeCounts) throws IOException {
         File parent = reportFile.getParentFile();
         if (parent != null && !parent.exists()) {
             parent.mkdirs();
@@ -74,29 +75,10 @@ public class RecipeJsonWriter {
         report.put("discovered_handlers", discoveredHandlers);
         report.put("failed_handler_reasons", failedHandlerReasons);
 
-        // Type counts
-        Map<String, Integer> typeCounts = new LinkedHashMap<>();
+        report.put("type_counts", typeCounts != null ? typeCounts : new LinkedHashMap<>());
+
+        // Mod counts from recipe items (one-pass)
         Map<String, Integer> modCounts = new LinkedHashMap<>();
-        for (ExportRecipe r : recipes) {
-            String t = r.getType();
-            typeCounts.put(t, typeCounts.getOrDefault(t, 0) + 1);
-            // Count mods from input/output items
-            for (Map.Entry<String, Map<String, String>> e : r.getInput().entrySet()) {
-                String id = e.getValue().get("id");
-                if (id != null && id.contains(":")) {
-                    String mod = id.substring(0, id.indexOf(':'));
-                    modCounts.put(mod, modCounts.getOrDefault(mod, 0) + 1);
-                }
-            }
-            for (Map.Entry<String, Map<String, String>> e : r.getOutput().entrySet()) {
-                String id = e.getValue().get("id");
-                if (id != null && id.contains(":")) {
-                    String mod = id.substring(0, id.indexOf(':'));
-                    modCounts.put(mod, modCounts.getOrDefault(mod, 0) + 1);
-                }
-            }
-        }
-        report.put("type_counts", typeCounts);
         report.put("mod_counts", modCounts);
 
         FileWriter writer = null;

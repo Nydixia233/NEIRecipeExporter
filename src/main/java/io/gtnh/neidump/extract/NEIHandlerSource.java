@@ -235,13 +235,13 @@ public class NEIHandlerSource implements IRecipeSource {
 
     private void attachCatalysts(Object handler, List<ExportRecipe> recipes, NEIRecipeExtractor context) {
         if (recipes.isEmpty()) return;
-        List<String> catalystIds = getCatalystIds(handler);
+        List<String> catalystIds = getCatalystIds(handler, context);
         if (catalystIds.isEmpty()) return;
         for (ExportRecipe r : recipes) r.putExtra("catalysts", new ArrayList<>(catalystIds));
     }
 
     @SuppressWarnings("unchecked")
-    private List<String> getCatalystIds(Object handler) {
+    private List<String> getCatalystIds(Object handler, NEIRecipeExtractor context) {
         List<String> out = new ArrayList<>();
         try {
             Class<?> irecipeHandlerClass = Class.forName("codechicken.nei.recipe.IRecipeHandler");
@@ -260,7 +260,7 @@ public class NEIHandlerSource implements IRecipeSource {
                     if (ps == null) continue;
                     ItemStack stack = extractSingleStackFromPositioned(ps);
                     if (stack != null && stack.getItem() != null)
-                        out.add(stackToKey(stack) + "@" + stack.getItemDamage());
+                        out.add(context.stackToKey(stack) + "@" + stack.getItemDamage());
                 }
             }
         } catch (Exception e) {
@@ -280,19 +280,6 @@ public class NEIHandlerSource implements IRecipeSource {
             for (ItemStack s : (ItemStack[]) itemsObj) if (s != null) return s.copy();
         }
         return null;
-    }
-
-    private static String stackToKey(ItemStack stack) {
-        if (stack == null || stack.getItem() == null) return "minecraft:air";
-        net.minecraft.item.Item item = stack.getItem();
-        cpw.mods.fml.common.registry.GameRegistry.UniqueIdentifier id =
-                cpw.mods.fml.common.registry.GameRegistry.findUniqueIdentifierFor(item);
-        if (id == null) {
-            String unl = item.getUnlocalizedName();
-            if (unl == null) return "unknown:unknown";
-            return "unknown:" + unl.replace("item.", "").replace("tile.", "");
-        }
-        return id.modId + ":" + id.name;
     }
 
     private static String strVal(Object o) { return o != null ? o.toString() : null; }

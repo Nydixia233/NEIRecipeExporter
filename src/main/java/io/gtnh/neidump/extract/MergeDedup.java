@@ -18,21 +18,21 @@ public final class MergeDedup {
      */
     public static void addDeduped(List<ExportRecipe> dest, Set<String> seen,
                                    List<ExportRecipe> candidates) {
-        // Rebuild lookup from current dest for O(1) duplicate checks
-        LinkedHashMap<String, ExportRecipe> seenMap = new LinkedHashMap<>();
-        for (ExportRecipe r : dest) {
-            String fp = recipeFingerprint(r);
-            seenMap.put(fp, r);
+        // Build lookup from existing dest for O(1) merge on duplicates
+        Map<String, ExportRecipe> seenMap = new LinkedHashMap<>();
+        for (int i = 0; i < dest.size(); i++) {
+            ExportRecipe r = dest.get(i);
+            seenMap.put(recipeFingerprint(r), r);
         }
         for (ExportRecipe r : candidates) {
             String fp = recipeFingerprint(r);
-            ExportRecipe existing = seenMap.get(fp);
-            if (existing != null) {
-                mergeFields(existing, r);
-            } else {
+            if (seen.add(fp)) {
                 seenMap.put(fp, r);
                 dest.add(r);
-                seen.add(fp);
+            } else {
+                // Merge fields from duplicate into existing
+                ExportRecipe existing = seenMap.get(fp);
+                if (existing != null) mergeFields(existing, r);
             }
         }
     }
