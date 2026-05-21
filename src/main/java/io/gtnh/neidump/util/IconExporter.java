@@ -75,7 +75,7 @@ public class IconExporter {
                 if (stack == null) continue;
                 BufferedImage img = renderItemStack(mc, stack);
                 if (img != null) {
-                    String safeId = id.replace(":", "_");
+                    String safeId = safeFileName(id);
                     File out = new File(itemsDir, safeId + "@" + meta + ".png");
                     out.getParentFile().mkdirs();
                     ImageIO.write(img, "PNG", out);
@@ -102,7 +102,7 @@ public class IconExporter {
                 try {
                     BufferedImage img = renderFluidIcon(mc, fluidName);
                     if (img != null) {
-                        String safeName = fluidName.replace(":", "_").replace("/", "_");
+                        String safeName = safeFileName(fluidName);
                         File out = new File(fluidsDir, safeName + ".png");
                         ImageIO.write(img, "PNG", out);
                         fluidCount++;
@@ -120,6 +120,15 @@ public class IconExporter {
 
         System.out.println("[NEIExport] Total icons: " + total);
         return total;
+    }
+
+    /**
+     * Replace NTFS-illegal filename characters with '_'. Without this, IDs with
+     * '|' (ProjRed|Core, BuildCraft|Transport, WR-CBE|Addons, ...) silently fail
+     * to write because Windows rejects the path.
+     */
+    private static String safeFileName(String s) {
+        return s.replaceAll("[<>:\"/\\\\|?*\\x00-\\x1F]", "_");
     }
 
     private static void collectFromSlotMap(Map<String, Map<String, String>> slots,
