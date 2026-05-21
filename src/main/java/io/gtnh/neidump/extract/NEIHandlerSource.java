@@ -3,6 +3,7 @@ package io.gtnh.neidump.extract;
 import io.gtnh.neidump.model.ExportRecipe;
 import io.gtnh.neidump.util.ReflectionUtils;
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.FluidStack;
 
 import java.util.*;
 
@@ -214,7 +215,13 @@ public class NEIHandlerSource implements IRecipeSource {
                 }
                 int slot = 1;
                 for (ItemStack stack : ingList) {
-                    recipe.putInputItem(slot, stack, context.stackToKey(stack));
+                    FluidStack fs = tryDecodeFluidDisplay(stack);
+                    if (fs != null && fs.getFluid() != null) {
+                        recipe.putFluidInput(slot, fs.getFluid().getName(),
+                                stripFormat(fs.getLocalizedName()), fs.amount);
+                    } else {
+                        recipe.putInputItem(slot, stack, context.stackToKey(stack));
+                    }
                     slot++;
                 }
 
@@ -232,7 +239,13 @@ public class NEIHandlerSource implements IRecipeSource {
                 }
                 slot = 1;
                 for (ItemStack stack : outList) {
-                    recipe.putOutputItem(slot, stack, context.stackToKey(stack));
+                    FluidStack fs = tryDecodeFluidDisplay(stack);
+                    if (fs != null && fs.getFluid() != null) {
+                        recipe.putFluidOutput(slot, fs.getFluid().getName(),
+                                stripFormat(fs.getLocalizedName()), fs.amount);
+                    } else {
+                        recipe.putOutputItem(slot, stack, context.stackToKey(stack));
+                    }
                     slot++;
                 }
 
@@ -301,6 +314,33 @@ public class NEIHandlerSource implements IRecipeSource {
             for (ItemStack s : (ItemStack[]) itemsObj) if (s != null) return s.copy();
         }
         return null;
+    }
+
+    /**
+     * If {@code stack} is GT's {@code gregtech:gt.GregTech_FluidDisplay} item,
+     * decode it back into a {@link FluidStack} via NEI's
+     * {@code codechicken.nei.recipe.StackInfo.getFluid(ItemStack)} reverse-lookup.
+     * Otherwise return null.
+     *
+     * <p>GT-family handlers (BioLab, BioVat, GT++, Bartworks) wrap fluids as
+     * display items so they fit through the {@code PositionedStack} pipeline;
+     * without this decode the dump treats those slots as items, which the
+     * downstream consumer can't classify as fluid.
+     */
+    private static FluidStack tryDecodeFluidDisplay(ItemStack stack) {
+        if (stack == null || stack.getItem() == null) return null;
+        Object regName = net.minecraft.item.Item.itemRegistry.getNameForObject(stack.getItem());
+        if (!"gregtech:gt.GregTech_FluidDisplay".equals(String.valueOf(regName))) return null;
+        try {
+            Object fs = ReflectionUtils.invokeStaticMethod(
+                    "codechicken.nei.recipe.StackInfo", "getFluid",
+                    new Class<?>[]{ItemStack.class}, new Object[]{stack});
+            return fs instanceof FluidStack ? (FluidStack) fs : null;
+        } catch (Exception e) { return null; }
+    }
+
+    private static String stripFormat(String s) {
+        return s == null ? null : s.replaceAll("\\u00a7.", "");
     }
 
     private static String strVal(Object o) { return o != null ? o.toString() : null; }
