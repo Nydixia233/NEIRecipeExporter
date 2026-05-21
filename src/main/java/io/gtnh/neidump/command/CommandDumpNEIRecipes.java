@@ -1,18 +1,15 @@
 package io.gtnh.neidump.command;
 
-import io.gtnh.neidump.export.RecipeJsonWriter;
-import io.gtnh.neidump.extract.NEIRecipeExtractor;
-import io.gtnh.neidump.model.ExportRecipe;
-import io.gtnh.neidump.util.IconExporter;
-import net.minecraft.client.Minecraft;
+import io.gtnh.neidump.export.ExportPipeline;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.util.ChatComponentText;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
-
+/**
+ * {@code /dumpnei [filename.json] [--strict] [--mod <id>] [--type <t>] [--no-icons] [--async]}
+ *
+ * <p>Thin parser — all real work lives in {@link ExportPipeline}.
+ */
 public class CommandDumpNEIRecipes extends CommandBase {
 
     @Override
@@ -22,7 +19,7 @@ public class CommandDumpNEIRecipes extends CommandBase {
 
     @Override
     public String getCommandUsage(ICommandSender sender) {
-        return "/dumpnei [filename.json] [--strict] [--mod <modid>] [--type <type>]";
+        return "/dumpnei [filename.json] [--strict] [--mod <modid>] [--type <type>] [--no-icons] [--async]";
     }
 
     @Override
@@ -32,106 +29,61 @@ public class CommandDumpNEIRecipes extends CommandBase {
 
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
-        String fileName = "all_recipe_runtime.json";
-        boolean strict = false;
-        String filterMod = null;
-        String filterType = null;
-
-        if (args != null && args.length > 0) {
-            for (int i = 0; i < args.length; i++) {
-                String token = args[i];
-                if (token == null || token.trim().isEmpty()) continue;
-                String clean = token.trim();
-
-                if ("--strict".equalsIgnoreCase(clean)) {
-                    strict = true;
-                } else if ("--mod".equalsIgnoreCase(clean) && i + 1 < args.length) {
-                    filterMod = args[++i].trim().toLowerCase();
-                } else if ("--type".equalsIgnoreCase(clean) && i + 1 < args.length) {
-                    filterType = args[++i].trim().toLowerCase();
-                } else if (!clean.startsWith("--")) {
-                    fileName = clean;
-                    if (!fileName.endsWith(".json")) fileName = fileName + ".json";
-                }
-            }
-        }
-
-        sender.addChatMessage(new ChatComponentText("[NEI Export] Starting recipe extraction..."
-                + (filterMod != null ? " mod=" + filterMod : "")
-                + (filterType != null ? " type=" + filterType : "")));
+        ExportPipeline.Config cfg = parseArgs(args);
 
         try {
-            File baseDir = Minecraft.getMinecraft().mcDataDir;
-            File output = new File(new File(baseDir, "export"), fileName);
-            String reportName = fileName.replace(".json", ".report.json");
-            File report = new File(new File(baseDir, "export"), reportName);
+            ExportPipeline.Result r = new ExportPipeline().run(cfg, sender);
 
-            NEIRecipeExtractor extractor = new NEIRecipeExtractor();
-            NEIRecipeExtractor.ExtractionResult result = extractor.extractAll();
-
-            // Apply filters
-            List<ExportRecipe> filtered = result.recipes;
-            if (filterMod != null || filterType != null) {
-                sender.addChatMessage(new ChatComponentText("[NEI Export] Filtering..."));
-                filtered = new ArrayList<ExportRecipe>();
-                for (ExportRecipe r : result.recipes) {
-                    boolean keep = true;
-                    if (filterType != null && !r.getType().toLowerCase().contains(filterType))
-                        keep = false;
-                    if (keep && filterMod != null) {
-                        boolean hasMod = false;
-                        for (java.util.Map.Entry<String, java.util.Map<String, String>> e
-                                : r.getInput().entrySet()) {
-                            String id = e.getValue().get("id");
-                            if (id != null && id.toLowerCase().startsWith(filterMod + ":")) {
-                                hasMod = true; break;
-                            }
-                        }
-                        if (!hasMod) {
-                            for (java.util.Map.Entry<String, java.util.Map<String, String>> e
-                                    : r.getOutput().entrySet()) {
-                                String id = e.getValue().get("id");
-                                if (id != null && id.toLowerCase().startsWith(filterMod + ":")) {
-                                    hasMod = true; break;
-                                }
-                            }
-                        }
-                        keep = hasMod;
-                    }
-                    if (keep) filtered.add(r);
-                }
-                sender.addChatMessage(new ChatComponentText("[NEI Export] After filter: "
-                        + result.recipes.size() + " → " + filtered.size()));
-            }
-
-            RecipeJsonWriter writer = new RecipeJsonWriter();
-            writer.write(output, filtered, result.handlersSeen, result.handlersFailed, !strict);
-            writer.writeReport(report, result.handlersSeen, result.handlersFailed,
-                    result.discoveredHandlers, result.failedHandlerReasons,
-                    filtered.size(), result.typeCounts, result.modCounts);
+            String iconStr = (r.iconsExported < 0)
+                    ? "queued"
+                    : String.valueOf(r.iconsExported);
 
             sender.addChatMessage(new ChatComponentText(
-                    "[NEI Export] Done. recipes=" + filtered.size()
-                            + ", handlers=" + result.handlersSeen
-                            + ", failed=" + result.handlersFailed
-                            + ", strict=" + strict
-                            + ", file=" + output.getAbsolutePath()
-                            + ", report=" + report.getAbsolutePath()
+                    "[NEI Export] Done."
+                            + " recipes=" + r.recipes
+                            + ", handlers=" + r.handlersSeen
+                            + ", failed=" + r.handlersFailed
+                            + ", icons=" + iconStr
+                            + ", strict=" + cfg.strict
+                            + ", time=" + (r.elapsedMs / 1000) + "s"
             ));
-
-            // Export item icons on the client render thread
-            sender.addChatMessage(new ChatComponentText("[NEI Export] Exporting item icons..."));
-            final File iconDir = new File(output.getParentFile(), "icons");
-            final List<ExportRecipe> recipeList = new ArrayList<ExportRecipe>(filtered);
-            Minecraft.getMinecraft().func_152344_a(new Runnable() {
-                public void run() {
-                    int iconCount = IconExporter.exportIcons(recipeList, iconDir);
-                    System.out.println("[NEIExport] Icons: " + iconCount + " exported to " + iconDir);
-                }
-            });
-            sender.addChatMessage(new ChatComponentText("[NEI Export] Icons queued for export..."));
+            sender.addChatMessage(new ChatComponentText(
+                    "[NEI Export]   json=" + r.jsonFile.getAbsolutePath()));
+            sender.addChatMessage(new ChatComponentText(
+                    "[NEI Export]   report=" + r.reportFile.getAbsolutePath()));
+            if (cfg.exportIcons) {
+                sender.addChatMessage(new ChatComponentText(
+                        "[NEI Export]   icons=" + r.iconDir.getAbsolutePath()));
+            }
         } catch (Exception e) {
             sender.addChatMessage(new ChatComponentText("[NEI Export] Failed: " + e.getMessage()));
+            e.printStackTrace();
         }
+    }
+
+    private static ExportPipeline.Config parseArgs(String[] args) {
+        ExportPipeline.Config cfg = new ExportPipeline.Config();
+        if (args == null) return cfg;
+
+        for (int i = 0; i < args.length; i++) {
+            String token = args[i];
+            if (token == null || token.trim().isEmpty()) continue;
+            String clean = token.trim();
+
+            if ("--strict".equalsIgnoreCase(clean)) {
+                cfg.strict = true;
+            } else if ("--no-icons".equalsIgnoreCase(clean)) {
+                cfg.exportIcons = false;
+            } else if ("--async".equalsIgnoreCase(clean)) {
+                cfg.async = true;
+            } else if ("--mod".equalsIgnoreCase(clean) && i + 1 < args.length) {
+                cfg.filterMod = args[++i].trim().toLowerCase();
+            } else if ("--type".equalsIgnoreCase(clean) && i + 1 < args.length) {
+                cfg.filterType = args[++i].trim().toLowerCase();
+            } else if (!clean.startsWith("--")) {
+                cfg.fileName = clean.endsWith(".json") ? clean : clean + ".json";
+            }
+        }
+        return cfg;
     }
 }

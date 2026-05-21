@@ -27,6 +27,11 @@ public class NEIHandlerSource implements IRecipeSource {
     private static final String METH_GET_OVERLAY_ID     = "getOverlayIdentifier";
     private static final String CLS_GT_RECIPE = "gregtech.api.util.GTRecipe";
 
+    /** Cached handler discovery so repeat calls are free within a single extraction. */
+    private static Set<Object> cachedHandlers;
+    /** Per-handler crashes within {@link #extractFromHandler} during the most recent run. */
+    private static int failedHandlerCount;
+
     @Override
     public String getName() { return "NEI Handlers"; }
 
@@ -37,14 +42,29 @@ public class NEIHandlerSource implements IRecipeSource {
         for (Object handler : handlers) {
             try {
                 out.addAll(extractFromHandler(handler, context));
-            } catch (Exception ignored) { /* per-handler safety */ }
+            } catch (Exception e) {
+                failedHandlerCount++;
+                /* per-handler safety */
+            }
         }
         return out;
     }
 
-    /** Discover all registered IRecipeHandler instances. */
+    /** Reset cached handler set + failure counter. Call before a fresh extraction. */
+    public static void resetHandlerCache() {
+        cachedHandlers = null;
+        failedHandlerCount = 0;
+    }
+
+    /** How many handlers crashed during the most recent {@link #extract} call. */
+    public static int getFailedHandlerCount() {
+        return failedHandlerCount;
+    }
+
+    /** Discover all registered IRecipeHandler instances (cached per run). */
     @SuppressWarnings("unchecked")
     public static Set<Object> discoverHandlers() {
+        if (cachedHandlers != null) return cachedHandlers;
         Set<Object> handlers = new LinkedHashSet<>();
         for (String[] entry : HANDLER_REGISTRIES) {
             Object fieldVal = ReflectionUtils.readStaticField(entry[0], entry[1]);
@@ -54,6 +74,7 @@ public class NEIHandlerSource implements IRecipeSource {
                 }
             }
         }
+        cachedHandlers = handlers;
         return handlers;
     }
 

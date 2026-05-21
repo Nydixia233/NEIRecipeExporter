@@ -61,9 +61,19 @@ public class NEIRecipeExtractor {
     public ExtractionResult extractAll() {
         recipeIndexByMap.clear();
         seenFingerprints.clear();
+        // Reset cached handler discovery so a re-run sees fresh state.
+        NEIHandlerSource.resetHandlerCache();
+
+        // Discover handlers once, up front. Reused by NEIHandlerSource (via cache)
+        // and by the stats block below.
+        Set<Object> handlers = NEIHandlerSource.discoverHandlers();
+        List<String> handlerClassNames = new ArrayList<>();
+        for (Object h : handlers) {
+            handlerClassNames.add(h.getClass().getName());
+        }
+
         List<ExportRecipe> exported = new ArrayList<>();
         Map<String, String> failedReasons = new LinkedHashMap<>();
-        List<String> discovered = new ArrayList<>();
         int failed = 0;
 
         // ---- Run each source ----
@@ -77,15 +87,12 @@ public class NEIRecipeExtractor {
             } catch (Throwable e) {
                 System.err.println("[NEIExport] " + source.getName() + " extraction failed: " + e);
                 e.printStackTrace();
+                failed++;
+                failedReasons.put(source.getName(), String.valueOf(e));
             }
         }
-
-        // Collect handler stats and discoverHandlers (cached)
-        Set<Object> handlers = NEIHandlerSource.discoverHandlers();
-        List<String> handlerClassNames = new ArrayList<>();
-        for (Object h : handlers) {
-            handlerClassNames.add(h.getClass().getName());
-        }
+        // Per-handler crashes inside NEIHandlerSource also count.
+        failed += NEIHandlerSource.getFailedHandlerCount();
 
         // Type and mod counts from exported recipes
         Map<String, Integer> typeCounts = new LinkedHashMap<>();
