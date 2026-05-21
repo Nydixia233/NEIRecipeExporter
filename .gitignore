@@ -35,3 +35,12 @@ stderr*.log
 # Environment
 .env
 *.env.local
+
+# Local toolchain (vendored JDK + Gradle, not portable, ~465 MB)
+tools/
+
+# Local Claude state
+.claude/
+
+# Local deploy targets (build.gradle reads this if present)
+deploy.gradle
