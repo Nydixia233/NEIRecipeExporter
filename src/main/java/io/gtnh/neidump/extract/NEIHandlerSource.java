@@ -104,6 +104,28 @@ public class NEIHandlerSource implements IRecipeSource {
     private List<ExportRecipe> extractFromHandler(Object handler, NEIRecipeExtractor context) {
         List<ExportRecipe> out = new ArrayList<>();
 
+        // Strategy AllRecipes: NEI's own "show every recipe" entry point.
+        // getAllRecipeHandler() returns a FRESH instance with arecipes pre-populated,
+        // covering both the "all" outputId path and transferRects iteration.
+        // This is the path NEI itself uses for its all-recipes view; without it,
+        // most TemplateRecipeHandler-derived handlers (Forestry, IC2, EnderIO,
+        // Botania, Tinkers, ...) leave arecipes empty because Strategy B's
+        // getHandlerId() / getOverlayIdentifier() don't match their internal
+        // outputId dispatch keys.
+        try {
+            Object loaded = ReflectionUtils.invokeNoArg(handler, "getAllRecipeHandler");
+            if (loaded != null) {
+                Object loadedRecipes = ReflectionUtils.readField(loaded, "arecipes");
+                if (loadedRecipes instanceof List && !((List<?>) loadedRecipes).isEmpty()) {
+                    out.addAll(extractFromCachedRecipeList(loaded, (List<Object>) loadedRecipes, context));
+                    attachCatalysts(handler, out, context);
+                    return out;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[NEIExport] AllRecipes failed for " + handler.getClass().getName() + ": " + e);
+        }
+
         // Strategy A: getCache()
         try {
             Object cache = ReflectionUtils.invokeNoArg(handler, "getCache");
