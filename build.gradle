@@ -56,3 +56,82 @@ jar {
     }
     archiveBaseName.set('NEIRecipeExporter')
 }
+
+// ============================================================================
+//  Auto-deploy: after every successful `build`, copy the reobf jar into each
+//  Minecraft instance listed below.
+//
+//  By default DEPLOY_MODS_DIRS is empty (no-op). To enable, drop a `deploy.gradle`
+//  next to this file (gitignored) that sets it, e.g.:
+//
+//      project.ext.DEPLOY_MODS_DIRS = [
+//              'C:/Users/<you>/AppData/Roaming/.minecraft/mods',
+//      ]
+//
+//  NOTE: paths live in Groovy source (UTF-8) rather than gradle.properties
+//  (ISO-8859-1), so non-ASCII characters survive intact.
+// ============================================================================
+ext.DEPLOY_MODS_DIRS = []
+def localDeploy = file('deploy.gradle')
+if (localDeploy.exists()) apply from: localDeploy
+
+tasks.register('deployMod') {
+    group = 'deployment'
+    description = 'Copy the reobf jar into configured Minecraft instance mods/ directories.'
+
+    // The reobf jar is the SRG-remapped artefact (NO -dev classifier). That's
+    // what Minecraft actually loads at runtime — `jar` produces the MCP-mapped
+    // -dev jar which only runs in the dev environment.
+    dependsOn tasks.named('reobfJar')
+
+    doLast {
+        List<String> targets = (project.ext.DEPLOY_MODS_DIRS ?: []) as List<String>
+        if (targets.isEmpty()) {
+            logger.lifecycle('[deployMod] DEPLOY_MODS_DIRS is empty — skipping deploy.')
+            return
+        }
+
+        File srcJar = tasks.named('reobfJar').get().archiveFile.get().asFile
+        if (!srcJar.exists()) {
+            throw new GradleException("[deployMod] reobf jar not found: ${srcJar}")
+        }
+
+        String fileName = srcJar.name
+        // Match any prior version of the SAME mod (e.g. NEIRecipeExporter-1.0.0.jar)
+        // but never the `-dev` jar.
+        String pruneRegex = '^NEIRecipeExporter-(?!.*-dev\\.jar$)[^/\\\\]+\\.jar$'
+
+        targets.each { String entry ->
+            String trimmed = entry?.trim()
+            if (!trimmed) return
+            File modsDir = new File(trimmed)
+            if (!modsDir.isDirectory()) {
+                logger.warn("[deployMod] target not a directory, skipping: ${modsDir}")
+                return
+            }
+
+            // Remove older versions of the same mod so MC doesn't load both.
+            modsDir.listFiles()?.each { File f ->
+                if (f.isFile() && f.name ==~ pruneRegex && f.name != fileName) {
+                    if (f.delete()) {
+                        logger.lifecycle("[deployMod] removed old: ${f.name}")
+                    } else {
+                        logger.warn("[deployMod] could not delete old jar: ${f}")
+                    }
+                }
+            }
+
+            File dst = new File(modsDir, fileName)
+            java.nio.file.Files.copy(
+                    srcJar.toPath(), dst.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            )
+            logger.lifecycle("[deployMod] -> ${dst}")
+        }
+    }
+}
+
+// Run deployMod automatically as part of `build`.
+tasks.named('build').configure {
+    finalizedBy tasks.named('deployMod')
+}
