@@ -111,9 +111,12 @@ public class GTRecipeMapSource implements IRecipeSource {
             }
         }
 
-        // Fluid inputs
+        // Fluid inputs — slot derived from current input map size (mirrors fluid
+        // outputs below). Don't reuse the `slot` counter above: it was clobbered
+        // by the item-output loop and would overwrite item-input entries.
         Object fluidIns = ReflectionUtils.readField(rawRecipe, "mFluidInputs");
         if (fluidIns instanceof Object[]) {
+            int inSlot = recipe.getInput().size() + 1;
             for (Object fs : (Object[]) fluidIns) {
                 if (fs == null) continue;
                 String id = fluidName(fs);
@@ -121,8 +124,8 @@ public class GTRecipeMapSource implements IRecipeSource {
                 Object amt = ReflectionUtils.readField(fs, "amount");
                 int amount = (amt instanceof Number) ? ((Number) amt).intValue() : 0;
                 if (id != null) {
-                    recipe.putFluidInput(slot, id, display != null ? display : id, amount);
-                    slot++;
+                    recipe.putFluidInput(inSlot, id, display != null ? display : id, amount);
+                    inSlot++;
                 }
             }
         }
